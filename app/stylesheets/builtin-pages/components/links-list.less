@@ -1,0 +1,174 @@
+@import "../../utils/flex";
+
+.links-list {
+
+  .link {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: clip;
+    color: @color-text;
+    margin-right: 5px;
+    max-width: ~"calc(100% - 45px)";
+
+    &:hover {
+      // TODO: This is necessary because @import "components/link" from other
+      // builtin pages are being included here. Ulitmately each builtin page
+      // should request its own CSS and nothing else, instead of having a global
+      // builtin pages stylesheet. I sure am missing Sass placeholders right
+      // now! -tbv
+      text-decoration: none;
+    }
+  }
+
+  .ll-progressbar {
+    flex: 0 0 100px;
+    padding: 6px 8px;
+    progress {
+      width: 80px;
+      position: relative;
+      top: 3px;
+    }
+  }
+  .ll-progress {
+    padding: 6px 8px;
+    color: #999;
+    min-width: 45px;
+    text-align: right;
+  }
+  .ll-status {
+    padding: 6px 8px;
+    color: #999;
+    text-align: right;
+  }
+  .ll-serve {
+    padding: 6px 0;
+    flex: 0 0 90px;
+    text-align: right;
+  }
+}
+
+.ll-heading {
+  font-size: 18px;
+}
+
+.ll-row {
+  &:extend(.flex);
+  flex-wrap: nowrap;
+  position: relative;
+  height: 33px;
+  padding: 0 5px;
+  justify-content: space-between;
+
+  * {
+    text-decoration: none;
+    line-height: 25px;
+    vertical-align: middle;
+    cursor: pointer;
+  }
+
+  .title, .url {
+    margin-right: @margin-icon;
+  }
+
+  .favicon {
+    display: inline;
+    flex-basis: 16px;
+    width: 16px;
+    height: 16px;
+    margin-right: 8px;
+  }
+
+  i.favicon {
+    width: auto;
+    height: auto;
+    margin-left: 1px;
+  }
+
+  .url {
+    color: @color-text--light;
+  }
+
+  .actions {
+    color: @color-text--muted;
+
+    .action {
+      display: inline-block;
+      opacity: 0;
+
+      &.pin {
+        opacity: 1;
+      }
+
+      &.pinned {
+
+        .icon {
+
+          * {
+            fill: @color-link;
+          }
+        }
+      }
+    }
+
+    .icon {
+      width: 12px;
+      height: 12px;
+      margin-left: 10px;
+
+      * {
+        stroke: rgba(0,0,0,.35);
+        stroke-opacity: 1;
+        fill-opacity: 1;
+        transition: all .15s ease;
+      }
+
+      &:hover {
+
+        * {
+          stroke: rgba(0,0,0,.75);
+        }
+      }
+
+      &:not(:last-child) {
+        margin-right: 7px;
+      }
+
+      &.pin {
+        width: 10px;
+        margin-right: -1px;
+
+        * {
+          fill: rgba(0,0,0,.35);
+        }
+      }
+
+      &.pencil {
+        margin-bottom: 1px;
+      }
+
+      &.trash {
+        margin-bottom: 2px;
+
+        &:hover * {
+          stroke: darken(@red, 15%);
+        }
+      }
+    }
+  }
+
+  .inputs {
+
+    input {
+      display: inline-block;
+      height: 20px;
+    }
+  }
+
+  &:hover, .editing {
+    background: @background-highlight;
+
+    .action {
+      opacity: 1;
+    }
+  }
+}

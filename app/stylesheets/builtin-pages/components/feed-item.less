@@ -1,0 +1,97 @@
+.feed-item {
+  -webkit-font-smoothing: antialiased;
+
+  .avatar {
+    width: 35px;
+    height: 35px;
+    margin-right: 5px;
+  }
+
+  &.post {
+    position: relative;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    padding: 15px;
+
+    .avatar {
+      position: absolute;
+      left: 15px;
+      top: 15px;
+    }
+
+    .name {
+      line-height: 1;
+    }
+
+    .text {
+      margin-top: 5px;
+    }
+
+    .post-content {
+      margin-left: 45px;
+      line-height: 1;
+    }
+
+    .post-actions {
+      margin-left: 45px;
+
+      .vote-icon {
+
+        &:not(.voted):hover {
+
+          .heart * {
+            stroke: #999;
+          }
+        }
+
+        &.voted {
+
+          .heart * {
+            fill: crimson;
+            stroke: crimson;
+          }
+        }
+
+        .heart * {
+          fill: none;
+          stroke: #ccc;
+          stroke-width: 2px;
+        }
+      }
+
+      .icon {
+        width: 14.5px;
+        height: 14.5px;
+      }
+    }
+  }
+
+  &.profile {
+    background: #fff;
+    padding: 15px;
+    position: relative;
+
+    .profile-feed-item-header {
+      &:extend(.flex);
+    }
+
+    .follow-btn {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+    }
+
+    .avatar {
+      width: 50px;
+      height: 50px;
+    }
+
+    .bio {
+      margin-bottom: 0;
+    }
+
+    .url {
+      font-size: .775rem;
+    }
+  }
+}

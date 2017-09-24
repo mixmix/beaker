@@ -1,185 +1,182 @@
-beaker browser
+Beaker Browser
 ======
+[![Backers on Open Collective](https://opencollective.com/beaker/backers/badge.svg)](#backers) [![Sponsors on Open Collective](https://opencollective.com/beaker/sponsors/badge.svg)](#sponsors)
 
-This is a highly opinionated and standards-noncompliant browser.
-It has its own APIs for decentralized software.
+![logo.png](build/icons/256x256.png)
 
-Please feel free to open usability issues.
+Beaker is an experimental peer-to-peer Web browser. It adds new APIs for building hostless applications, while remaining compatible with the rest of the Web. [Visit the website.](https://beakerbrowser.com/)
 
-![screenshot.png](screenshot.png)
+Please feel free to open usability issues. Join us at #beakerbrowser on Freenode.
 
-## building and project structure
+## Binaries
+
+### [OSX 64-bit .dmg](https://download.beakerbrowser.net/download/latest/osx)
+
+## About
+
+Beaker is a new browser that combines the flexibility of the desktop with the connectivity of the Web.
+
+### Why Beaker?
+
+ - You can share files privately
+ - You control your data
+ - You can duplicate, modify, and share websites
+ - You can use apps while offline
+ - You can go back in time and see previous verions of your content
+
+### Features
+
+ - Host sites from the browser
+ - Save sites for offline use
+ - Share files secretly between devices
+ - Versioned URLs for historic lookup
+ - New Web APIs
+ - Live reloading
+ - Native markdown (.md) rendering
+
+With Beaker, we're combining the flexibility of the desktop with the connectivity of the Web.
+
+#### New Web APIs
+
+An example of the [Dat Files API](https://beakerbrowser.com/docs/apis/dat.html):
+
+```js
+var archive = await DatArchive.create({
+  title: 'My Site',
+  description: 'My peer-to-peer website'
+})
+await archive.writeFile('/hello.txt', 'hello')
+await archive.commit()
+
+console.log(archive.url)
+// => dat://da2ce4..dc/
+```
+
+## Documentation
+
+Looking to work on Beaker? [Watch this video](https://www.youtube.com/watch?v=YuE9OO-ZDYo) and take a look at [the build notes](./build-notes.md).
+
+- **Web APIs**
+  - [DatArchive](https://beakerbrowser.com/docs/apis/dat.html)
+  - [Permissions](https://beakerbrowser.com/docs/apis/permissions.html)
+  - [Dat.json site manifest](https://beakerbrowser.com/docs/apis/manifest.html)
+- **Specs**
+  - Implemented
+    - [Dat files protocol](https://beakerbrowser.com/docs/inside-beaker/dat-files-protocol.html)
+    - [Dat DNS](https://github.com/beakerbrowser/beaker/wiki/Authenticated-Dat-URLs-and-HTTPS-to-Dat-Discovery)
+  - Proposed
+    - [Installable Web Applications](https://github.com/beakerbrowser/beaker/wiki/Installable-Web-Applications)
+    - [Intents](https://github.com/beakerbrowser/beaker/wiki/Intent-Scheme) a URI scheme for composing interactions between apps
+    - [Service Discovery](https://github.com/beakerbrowser/beaker/wiki/PSA-Web-Service-Discovery-Protocol)
+    - [WebTerm](https://github.com/beakerbrowser/beaker/wiki/WebTerm) a bashlike terminal for Web
+  - Dead
+    - [App Scheme](https://github.com/beakerbrowser/beaker/wiki/App-Scheme)
+- [**Tutorials**](https://beakerbrowser.com/docs/tutorials/)
+
+## Env Vars
+
+- `DEBUG`: which log systems to output? A comma-separated string. Can be `beaker`, `dat`, `bittorrent-dht`, `dns-discovery`, `hypercore-protocol`. Specify `*` for all.
+- `beaker_user_data_path`: override the user-data path, therefore changing where data is read/written. Useful for testing. For default value see `userData` in the [electron docs](https://electron.atom.io/docs/api/app/#appgetpathname).
+- `beaker_dat_quota_default_archives_allowed`: override the default max-quota for archives allowed. Default is 5.
+- `beaker_dat_quota_default_bytes_allowed`: override the default max-quota for bytes allowed to be written by a dat site. Useful for testing. Default value is `'500mb'`. This can be a Number or a String. Check [bytes.parse](https://github.com/visionmedia/bytes.js/tree/a4b9af2bf289175f12b3538eb172f2489844b1ec#bytesparsestringnumber-value-numbernull) for supported units and abbreviations.
+
+## Building from source
+
+Requires node 6.2.1.
+In linux (possibly also OSX) you need libtool, m4, automake, make, and g++.
 
 ```
-git clone https://github.com/pfraze/beaker.git
+sudo apt-get install libtool m4 automake make g++
+```
+
+In Fedora:
+
+```
+sudo dnf install libtool m4 make gcc-c++
+```
+
+To build:
+
+```
+git clone https://github.com/beakerbrowser/beaker.git
 cd beaker
 npm install
+npm run rebuild #see https://github.com/electron/electron/issues/5851
 npm start
 ```
 
-If you are using a node version ealier than 6, you may receive an error about a module version mismatch.
-If so, run the following command after `npm install`, to have the modules rebuild into the version you need:
+If you pull latest from the repo and get weird module errors, do:
 
 ```
-npm run rebuild
+npm run burnthemall
 ```
 
-[Lots of dev instructions and notes here](./build-notes.md)
+This invokes [the mad king](http://nerdist.com/wp-content/uploads/2016/05/the-mad-king-game-of-thrones.jpg), who will torch your node_modules, and do the full install/rebuild process for you.
+`npm start` should work afterwards.
 
-## discussion
+If you're doing development, `npm run watch` to have assets build automatically.
 
- - [0001 Keybase, global userids and pubkey certs](./doc/discuss-notes/0001-keybase.md). An argument for integrating keybase.
-   - Related video: [BlackHat USA 2011: SSL And The Future Of Authenticity](https://www.youtube.com/watch?v=Z7Wl2FW2TcA). Discusses problems with the CA model of authentication, and suggests using network "notaries" to validate certificates.
- - [0002 Hyperboot, application delivery safety](./doc/discuss-notes/0002-hyperboot.md).
- - [0003 HTTP legacy](./doc/discuss-notes/0003-http-legacy.md). The argument for continuing to support HTTP/S.
+## Running the tests
 
-## tech integrations
+Tests use their own package.json:
 
-If you have tech that needs a browser, make a fork, open an issue, try out your integration, and PR back to here.
+```
+cd tests
+npm install
+```
 
-### planned integrations
+To run:
 
-#### dat ([link](http://dat-data.com/))
+```
+cd tests
+npm test
+```
 
-Dat provides a data layer that is addressable across hosts, using public keys (for append-only logs) and hash-addresses (for file archives).
-It discovers peers with the Bittorrent DHT, centralized DNS servers and Multicast DNS simultaneously.
+## Known issues
 
-([how dat works](https://dat-data.readthedocs.io/en/latest/how-dat-works/))
+### tmux
 
- - [hyperdrive](https://www.npmjs.com/package/hyperdrive) - The file sharing network dat uses to distribute files and data. A technical specification / discussion on how hyperdrive works is [available here](https://github.com/mafintosh/hyperdrive/blob/master/SPECIFICATION.md)
- - [hypercore](https://www.npmjs.com/package/hypercore) - exchange low-level binary blocks with many sources
- - [discovery-channel](https://www.npmjs.com/package/discovery-channel) - discover data sources
- - [discovery-swarm](https://www.npmjs.com/package/discovery-swarm) - discover and connect to sources
- - [bittorrent-dht](https://www.npmjs.com/package/bittorrent-dht) - use the Kademlia Mainline DHT to discover sources
- - [dns-discovery](https://www.npmjs.com/package/dns-discovery) - use DNS name servers and Multicast DNS to discover sources
+Launching from tmux is known to cause issues with GUI apps in MacOS. On Beaker, it may cause the application to hang during startup.
 
-#### libsodium ([link](https://github.com/jedisct1/libsodium))
+## Contributors
 
-Sodium is a modern and easy-to-use crypto library.
-Beaker will use [node-sodium](https://github.com/paixaop/node-sodium) bindings to import the API into the JS environment.
+This project exists thanks to all the people who contribute. [[Contribute]](CONTRIBUTING.md).
+[![](https://opencollective.com/beaker/contributors.svg?width=890)](https://github.com/beakerbrowser/beaker/graphs/contributors)
 
-### proposed integrations
 
- - [magic wormhole](https://github.com/warner/magic-wormhole)
- - [IPFS](https://ipfs.io/)
- - [interledger](https://interledger.org/)
- - keybase ([discussion](./doc/discuss-notes/0001-keybase.md))
- - SQLite
- - node `fs` module
- - matrix ([matrix-js-sdk](https://www.npmjs.com/package/matrix-js-sdk), [homepage](https://matrix.org/))
 
-## todo list
+## Backers
 
-### basic ui
+Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/beaker#backer)]
 
-Basic browsing UI.
-Please feel free to open usability issues.
+<a href="https://opencollective.com/beaker#backers" target="_blank"><img src="https://opencollective.com/beaker/backers.svg?width=890"></a>
 
-  - un/happiness reporter
-    - [ ] ui to report that you're happy or unhappy, and why
-    - [ ] server to collect reports
-  - tabs
-    - [ ] favicons
-    - [ ] reordering
-    - [ ] pinning
-  - webview behaviors
-    - [ ] restore scroll-position on back btn [electron issue](https://github.com/electron/electron/issues/5884)
-    - [ ] restore session history on "re-open closed tab" [electron issue](https://github.com/electron/electron/issues/5885)
-    - zoom
-      - [ ] persist zoom on domains
-      - [ ] show current zoom in toolbar
-  - bookmarking
-    - [ ] bookmark btn on toolbar
-    - [ ] store bookmarks
-    - [ ] store favicons
-  - context menu
-    - [ ] save image as...
-    - [ ] video/audio element controls
 
-### dat integration
+## Sponsors
 
-  - [ ] "Save dat archive..."
-  - pinning
-    - is pinning the same as bookmarking?
-    - [ ] pin btn in toolbar (view-dat: and dat:)
-    - [ ] save pinned dats to disk 
-    - [ ] delete unpinned dats
-    - [ ] show pinned dats in start page
-  - view-dat://
-    - [ ] show item sizes
-    - [ ] render README.md ?
-  - dat://
-    - [ ] If index.html does not exist, but the archive was found, redirect to view-dat://
-    - [ ] solve issue causing slow sync
-    - [ ] add webrtc as a transport
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/beaker#sponsor)]
 
-### privacy, security
+<a href="https://opencollective.com/beaker/sponsor/0/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/0/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/1/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/2/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/3/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/4/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/5/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/6/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/7/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/8/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/beaker/sponsor/9/website" target="_blank"><img src="https://opencollective.com/beaker/sponsor/9/avatar.svg"></a>
 
-Some basic necessities
 
- - [ ] block ads
- - [ ] incognito mode only. add opt-in 
- - [ ] try HTTPS before trying 
- - [ ] try to remove things that make fingerprinting possible
- - [ ] put webrtc (and other leaky apis) behind perms prompts
 
-More advanced goals:
+## License
 
- - [ ] site version control (https://github.com/substack/hyperboot)
- - [ ] sandbox permission-trading: new features (such as FS access) are made available after other rights (such as XHR) are dropped
+Modified MIT License (MIT)
 
-### user identity
+Copyright (c) 2017 Paul Frazee
 
-something close to (if not cloned from) mozilla's persona project.
-or, may consider using https://github.com/google/end-to-end.
-should work across devices
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
- - [ ] naming/addressing (bob@foo.com ?)
- - [ ] key management, store secrets safely
- - [ ] look into supporting SSL client certificates
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-### cross-host data publishing
-
-we need a data layer that is addressable and manipulable across different hosts. the way to do this is to use cryptographic referenced data structures (sha256 URIs for static content, and pubkey URIs for dynamic content)
-
-https://github.com/mafintosh/hyperlog
-and
-https://github.com/mafintosh/hyperdrive
-provides 2 crypto-addressed data types (logs, file archives) with p2p syncing protocols
-
- - [ ] hyperlog/hyperdrive APIs
-
-### peer-to-peer messaging layer
-
- - [ ] webrtc signalling. needs to integrate with user identity layer, so channels can be opened using another user's ID. (matrix protocol?)
- - [ ] mail protocol. SMTP? not sure.
-
-### user storage
-
- - [ ] local filesystem API
- - [ ] remote filesystem API (nfs?)
- - [ ] sqlite API
-
-## license
-
-The MIT License (MIT)
-
-Copyright (c) 2016 Paul Frazee
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

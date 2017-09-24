@@ -1,0 +1,50 @@
+textarea {
+  line-height: 1.4;
+}
+
+input, textarea {
+  height: 30px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: fadeout(@color-text, 5%);
+  border: 1px solid @border-menu;
+
+  &[type="checkbox"],
+  &[type="radio"],
+  &[type="range"] {
+
+    &:focus {
+      box-shadow: none;
+    }
+  }
+
+  &.roomy {
+    padding: 7px 9px;
+  }
+
+  &:focus {
+    outline: 0;
+    border: 1px solid fadeout(@color-link, 20%);
+    box-shadow: 0 0 0 2px fadeout(@color-link, 80%);
+  }
+}
+
+// custom file picker
+.input-file-picker {
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 2px;
+  border: 1px solid @border-menu;
+  color: @color-text--muted;
+
+  span {
+    flex: 1;
+    padding-left: 3px;
+  }
+}
+
+::-webkit-input-placeholder {
+  color: rgba(0,0,0,.6);
+  font-size: .75rem;
+}

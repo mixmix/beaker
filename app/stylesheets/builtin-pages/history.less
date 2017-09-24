@@ -1,0 +1,54 @@
+@import "./components/sidebar";
+@import "../components/link";
+@import "../base/spacing";
+
+.window-content.history {
+
+  .builtin-main {
+    max-width: ~"calc(100vw - 340px)"; // width of main sidebar + builtin-sidebar
+
+    .links-list.history {
+      max-width: 950px;
+      width: 100%;
+
+      h2 {
+        position: sticky;
+        top: 42px;
+        z-index: 1;
+        padding: 10px 10px 0;
+        margin: 0;
+        border-bottom: 1px solid rgb(230, 230, 230);
+        border-right: 1px solid rgb(230, 230, 230);
+        text-transform: none;
+        letter-spacing: 0;
+        background: #fff;
+      }
+
+      .ll-row {
+        max-width: 950px;
+        width: 100%;
+
+        .link {
+          width: 100%;
+        }
+
+        .url {
+          margin-right: 10px;
+        }
+      }
+    }
+
+
+    .builtin-header {
+
+      .button-clear {
+        margin-right: 5px;
+      }
+
+      select {
+        height: 26px;
+        font-size: 11.5px;
+      }
+    }
+  }
+}

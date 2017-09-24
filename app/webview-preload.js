@@ -1,7 +1,30 @@
-import { setup as setupCommandHandlers } from './webview-preload/command-handlers'
-import { setup as setupContextMenu } from './webview-preload/context-menu'
-import { setup as setupStatusBarHover } from './webview-preload/status-bar-hover'
+import { webFrame } from 'electron'
+import DatArchive from './lib/web-apis/dat-archive'
+import beaker from './lib/web-apis/beaker'
+import { setup as setupLocationbar } from './webview-preload/locationbar'
+import { setup as setupPrompt } from './webview-preload/prompt'
+import setupRedirectHackfix from './webview-preload/redirect-hackfix'
 
-setupCommandHandlers()
-setupContextMenu()
-setupStatusBarHover()
+// HACKS
+setupRedirectHackfix()
+
+// register protocol behaviors
+/* This marks the scheme as:
+ - Secure
+ - Allowing Service Workers
+ - Supporting Fetch API
+ - CORS Enabled
+*/
+webFrame.registerURLSchemeAsPrivileged('dat', { bypassCSP: false })
+webFrame.registerURLSchemeAsPrivileged('app', { bypassCSP: false })
+
+// setup APIs
+if (['beaker:', 'dat:', 'https:', 'app:'].includes(window.location.protocol) ||
+    (window.location.protocol === 'http:' && window.location.hostname === 'localhost')) {
+  window.DatArchive = DatArchive
+}
+if (window.location.protocol === 'beaker:') {
+  window.beaker = beaker
+}
+setupLocationbar()
+setupPrompt()

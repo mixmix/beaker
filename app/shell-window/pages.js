@@ -1,10 +1,32 @@
-import { remote } from 'electron'
+/* globals beaker DatArchive URL */
+
+import { ipcRenderer, remote } from 'electron'
 import EventEmitter from 'events'
 import path from 'path'
+import fs from 'fs'
+import parseDatURL from 'parse-dat-url'
+import * as zoom from './pages/zoom'
 import * as navbar from './ui/navbar'
-import * as statusBar from './ui/status-bar'
+import * as promptbar from './ui/promptbar'
+import * as statusBar from './ui/statusbar'
+import {urlsToData} from '../lib/fg/img'
+import {throttle} from '../lib/functions'
+import errorPage from '../lib/error-page'
+import addAsyncAlternatives from './webview-async'
 
-const DEFAULT_URL = 'beaker:start'
+// constants
+// =
+
+const ERR_ABORTED = -3
+const ERR_CONNECTION_REFUSED = -102
+const ERR_INSECURE_RESPONSE = -501
+
+const TRIGGER_LIVE_RELOAD_DEBOUNCE = 1e3 // throttle live-reload triggers by this amount
+
+export const FIRST_TAB_URL = 'beaker://start'
+export const DEFAULT_URL = 'beaker://start'
+
+const APP_PATH = remote.app.getAppPath() // NOTE: this is a sync op
 
 // globals
 // =
@@ -14,6 +36,7 @@ var activePage = null
 var events = new EventEmitter()
 var webviewsDiv = document.getElementById('webviews')
 var closedURLs = []
+var cachedMarkdownRendererScript
 
 // exported functions
 // =
@@ -22,138 +45,303 @@ export function on (...args) {
   events.on.apply(events, args)
 }
 
-export function getAll() {
+export function getAll () {
   return pages
 }
 
-export function create (url) {
+export function getPinned () {
+  return pages.filter(p => p.isPinned)
+}
+
+export function setup () {
+  beaker.archives.addEventListener('network-changed', ({details}) => {
+    // check if any of the active pages matches this url
+    pages.forEach(page => {
+      if (page.siteInfo && page.siteInfo.url === details.url) {
+        // update info
+        page.siteInfo.peers = details.peerCount
+        navbar.update(page)
+      }
+      // refresh if this was a 503ed site
+      if (page.siteWasADatTimeout && page.url.startsWith(details.url)) {
+        page.reload()
+      }
+    })
+  })
+}
+
+export function create (opts) {
+  var url
+  if (opts && typeof opts == 'object') {
+    url = opts.url
+  } else if (typeof opts == 'string') {
+    url = opts
+    opts = {}
+  } else { opts = {} }
+
+  url = url || DEFAULT_URL
+
   // create page object
-  var id = (Math.random()*1000|0) + Date.now()
+  var id = (Math.random() * 1000 | 0) + Date.now()
   var page = {
     id: id,
+    wcID: null, // the id of the webcontents
     webviewEl: createWebviewEl(id, url),
     navbarEl: navbar.createEl(id),
+    promptbarEl: promptbar.createEl(id),
 
-    loadingURL: false, // what URL is being loaded, if any?
+    // page state
+    _url: url, // what is the actual current URL?
+    get url () { return this._url },
+    set url (v) {
+      this._url = v
+      ipcRenderer.send('shell-window:set-current-location', v) // inform main process
+    },
+    loadingURL: url, // what URL is being loaded, if any?
+    title: '', // what is the current pages title?
+    isGuessingTheURLScheme: false, // did beaker guess at the url scheme? if so, a bad load may deserve a second try
+    manuallyTrackedIsLoading: true, // used because the webview may never be ready, so webview.isLoading() isnt enough
     isWebviewReady: false, // has the webview loaded its methods?
+    isReceivingAssets: false, // has the webview started receiving assets, in the current load-cycle?
     isActive: false, // is the active page?
     isInpageFinding: false, // showing the inpage find ctrl?
+    inpageFindInfo: null, // any info available on the inpage find {activeMatchOrdinal, matches}
+    liveReloadEvents: false, // live-reload event stream
+    zoom: 0, // what's the current zoom level?
 
-    // get the URL of the page we want to load (vs which is currently loaded)
-    getIntendedURL: function () {
-      return page.loadingURL || page.getURL()
+    // current page's info
+    contentType: null, // what is the content-type of the page?
+    favicons: null, // what are the favicons of the page?
+    bookmark: null, // this page's bookmark object, if it's bookmarked
+
+    // current site's info
+    protocolInfo: null, // info about the current page's delivery protocol
+    siteLoadError: null, // info about the current page's last load's error (null if no error)
+    siteInfo: null, // metadata about the current page, derived from protocol knowledge
+    sitePerms: null, // saved permissions for the current page
+    siteInfoOverride: null, // explicit overrides on the siteinfo, used by beaker: pages
+    siteHasDatAlternative: false, // is there a dat:// version we can redirect to?
+    siteWasADatTimeout: false, // did we timeout trying to find this site on the dat network?
+
+    // history
+    lastVisitedAt: 0, // when is last time url updated?
+    lastVisitedURL: null, // last URL added into history
+    _canGoBack: false, // cached to avoid sync calls to the main process
+    _canGoForward: false, // cached to avoid sync calls to the main process
+
+    // prompts
+    prompts: [], // list of active prompts (used with perms)
+
+    // tab state
+    isPinned: opts.isPinned, // is this page pinned?
+    isTabDragging: false, // being dragged?
+    tabDragOffset: 0, // if being dragged, this is the current offset
+
+    // get the current URL
+    getURL () {
+      return this.url
     },
 
+    // get the current title
+    getTitle () {
+      return this.title
+    },
+
+    // get the URL of the page we want to load (vs which is currently loaded)
+    getIntendedURL () {
+      var url = page.loadingURL || page.getURL()
+      if (url.startsWith('beaker:') && page.siteInfoOverride && page.siteInfoOverride.url) {
+        // override, only if on a builtin beaker site
+        url = page.siteInfoOverride.url
+      }
+      return url
+    },
+
+    // custom isLoading
+    isLoading () {
+      return page.manuallyTrackedIsLoading
+    },
+
+    // cache getters to avoid sync calls to the main process
+    canGoBack () { return this._canGoBack },
+    canGoForward () { return this._canGoForward },
+
     // wrap webview loadURL to set the `loadingURL`
-    loadURL: function (url) {
-      // if (page.isWebviewReady) {
-        page.loadingURL = url
-        page.webviewEl.loadURL(url)
-      // }
+    loadURL (url, opts) {
+      // reset some state
+      page.isReceivingAssets = false
+      page.siteInfoOverride = null
+
+      // HACK to fix electron#8505
+      // dont allow visibility: hidden until set active
+      page.webviewEl.classList.remove('can-hide')
+
+      // set and go
+      page.loadingURL = url
+      page.isGuessingTheURLScheme = opts && opts.isGuessingTheScheme
+      if (!page.isWebviewReady) {
+        // just do a sync call, otherwise loadURLAsync will drop it on the floor
+        page.webviewEl.loadURL(url) // NOTE sync call
+      } else {
+        page.loadURLAsync(url)
+      }
+    },
+
+    // HACK wrap reload so we can remove can-hide class
+    reload () {
+      // HACK to fix electron#8505
+      // dont allow visibility: hidden until set active
+      page.webviewEl.classList.remove('can-hide')
+      setTimeout(() => page.reloadAsync(), 100)
+      // ^ needs a delay or it doesnt take effect in time, SMH at this code though
+    },
+
+    getURLOrigin () {
+      return parseURL(this.getURL()).origin
+    },
+
+    isLiveReloading () {
+      return !!page.liveReloadEvents
+    },
+
+    // start/stop live reloading
+    toggleLiveReloading () {
+      if (page.liveReloadEvents) {
+        page.liveReloadEvents.close()
+        page.liveReloadEvents = false
+      } else if (page.siteInfo) {
+        var archive = new DatArchive(page.siteInfo.key)
+        page.liveReloadEvents = archive.createFileActivityStream()
+        let event = (page.siteInfo.isOwner) ? 'changed' : 'invalidated'
+        page.liveReloadEvents.addEventListener(event, () => {
+          page.triggerLiveReload()
+        })
+      }
+      navbar.update(page)
+    },
+
+    stopLiveReloading () {
+      if (page.liveReloadEvents) {
+        page.liveReloadEvents.close()
+        page.liveReloadEvents = false
+      }
+    },
+
+    // reload the page due to changes in the dat
+    triggerLiveReload: throttle(() => {
+      page.reload()
+    }, TRIGGER_LIVE_RELOAD_DEBOUNCE),
+    // ^ note this is run on the front edge.
+    // That means snappier reloads (no delay) but possible double reloads if multiple files change
+
+    // helper to load the perms
+    fetchSitePerms () {
+      beaker.sitedata.getPermissions(this.getURL()).then(perms => {
+        page.sitePerms = perms
+        navbar.update(page)
+      })
+    },
+
+    // helper to check if there's a dat version of the site available
+    checkForDatAlternative (name) {
+      DatArchive.resolveName(name).then(res => {
+        this.siteHasDatAlternative = !!res
+        navbar.update(page)
+      }).catch(err => console.log('Name does not have a Dat alternative', name))
+    },
+
+    async toggleDevTools () {
+      if (await this.isDevToolsOpenedAsync()) {
+        this.closeDevToolsAsync()
+      } else {
+        this.openDevToolsAsync()
+      }
     }
   }
-  pages.push(page)
 
-  // create proxies for webview methods
-  //   webviews need to be dom-ready before their methods work
-  //   this wraps the methods so the call isnt made if not ready
-  ;([
-    ['isLoading', true],
-    ['getURL', ''],
-    ['getTitle', ''],
-    
-    ['goBack'],
-    ['canGoBack'],
-    ['goForward'],
-    ['canGoForward'],
+  if (opts.isPinned) {
+    pages.splice(indexOfLastPinnedTab(), 0, page)
+  } else {
+    pages.push(page)
+  }
 
-    ['reload'],
-    ['reloadIgnoringCache'],
-    ['stop'],
+  // add *Async alternatives to all methods, *Sync really should never be used
+  addAsyncAlternatives(page)
 
-    ['isDevToolsOpened', false],
-    ['openDevTools'],
-    ['closeDevTools'],
-    ['send'],
-
-    ['findInPage'],
-    ['stopFindInPage']
-  ]).forEach(methodSpec => {
-    var name = methodSpec[0]
-    var defaultReturn = methodSpec[1]
-    page[name] = (...args) => {
-      if (page.isWebviewReady)
-        return page.webviewEl[name].apply(page.webviewEl, args)
-      return defaultReturn
-    }
-  })
-  hide(page) // hidden by default
+  // add but leave hidden
+  hide(page)
   webviewsDiv.appendChild(page.webviewEl)
 
   // emit
-  events.emit('add', page)
   events.emit('update')
+  events.emit('add', page)
 
   // register events
   page.webviewEl.addEventListener('dom-ready', onDomReady)
   page.webviewEl.addEventListener('new-window', onNewWindow)
   page.webviewEl.addEventListener('will-navigate', onWillNavigate)
+  page.webviewEl.addEventListener('did-navigate-in-page', onDidNavigateInPage)
   page.webviewEl.addEventListener('did-start-loading', onDidStartLoading)
+  page.webviewEl.addEventListener('did-stop-loading', onDidStopLoading)
+  page.webviewEl.addEventListener('load-commit', onLoadCommit)
+  page.webviewEl.addEventListener('did-get-redirect-request', onDidGetRedirectRequest)
   page.webviewEl.addEventListener('did-get-response-details', onDidGetResponseDetails)
   page.webviewEl.addEventListener('did-finish-load', onDidFinishLoad)
   page.webviewEl.addEventListener('did-fail-load', onDidFailLoad)
-  page.webviewEl.addEventListener('ipc-message', onIpcMessage)
+  page.webviewEl.addEventListener('page-favicon-updated', onPageFaviconUpdated)
+  page.webviewEl.addEventListener('page-title-updated', onPageTitleUpdated)
+  page.webviewEl.addEventListener('update-target-url', onUpdateTargetUrl)
+  page.webviewEl.addEventListener('found-in-page', onFoundInPage)
+  page.webviewEl.addEventListener('close', onClose)
+  page.webviewEl.addEventListener('crashed', onCrashed)
+  page.webviewEl.addEventListener('gpu-crashed', onCrashed)
+  page.webviewEl.addEventListener('plugin-crashed', onCrashed)
+  page.webviewEl.addEventListener('ipc-message', onIPCMessage)
 
   // rebroadcasts
-  page.webviewEl.addEventListener('load-commit', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-finish-load', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-fail-load', rebroadcastEvent)
   page.webviewEl.addEventListener('did-start-loading', rebroadcastEvent)
   page.webviewEl.addEventListener('did-stop-loading', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-get-response-details', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-get-redirect-request', rebroadcastEvent)
-  page.webviewEl.addEventListener('dom-ready', rebroadcastEvent)
   page.webviewEl.addEventListener('page-title-updated', rebroadcastEvent)
   page.webviewEl.addEventListener('page-favicon-updated', rebroadcastEvent)
-  page.webviewEl.addEventListener('console-message', rebroadcastEvent)
-  page.webviewEl.addEventListener('will-navigate', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-navigate', rebroadcastEvent)
-  page.webviewEl.addEventListener('did-navigate-in-page', rebroadcastEvent)
 
   // make active if none others are
-  if (!activePage)
-    setActive(page)
+  if (!activePage) { setActive(page) }
 
   return page
 }
 
-export function remove (page) {
+export async function remove (page) {
   // find
   var i = pages.indexOf(page)
-  if (i == -1)
-    return console.warn('pages.remove() called for missing page', page)
+  if (i == -1) { return console.warn('pages.remove() called for missing page', page) }
 
   // save, in case the user wants to restore it
   closedURLs.push(page.getURL())
 
-  // remove
-  pages.splice(i, 1)
-  webviewsDiv.removeChild(page.webviewEl)
-
   // set new active if that was
   if (page.isActive) {
-    if (pages.length == 0)
-      create()
-    setActive(pages[pages.length - 1])
+    if (pages.length == 1) { return window.close() }
+    setActive(pages[i + 1] || pages[i - 1])
   }
+
+  // remove
+  page.stopLiveReloading()
+  pages.splice(i, 1)
+  webviewsDiv.removeChild(page.webviewEl)
+  navbar.destroyEl(page.id)
+  promptbar.destroyEl(page.id)
+
+  // persist pins w/o this one, if that was
+  if (page.isPinned) { savePinnedToDB() }
 
   // emit
   events.emit('remove', page)
   events.emit('update')
 
   // remove all attributes, to clear circular references
-  for (var k in page)
+  for (var k in page) {
     page[k] = null
+  }
 }
 
 export function reopenLastRemoved () {
@@ -173,17 +361,69 @@ export function setActive (page) {
   activePage = page
   show(page)
   page.isActive = 1
+  page.webviewEl.focus()
+  statusBar.setIsLoading(page.isLoading())
+  navbar.closeMenus()
+  navbar.update()
+  promptbar.update()
   events.emit('set-active', page)
+  ipcRenderer.send('shell-window:set-current-location', page.getIntendedURL())
+
+  // HACK to fix electron#8505
+  // can now allow visibility: hidden
+  page.webviewEl.classList.add('can-hide')
+}
+
+export function togglePinned (page) {
+  // move tab in/out of the pinned tabs
+  var oldIndex = pages.indexOf(page)
+  var newIndex = indexOfLastPinnedTab()
+  if (oldIndex < newIndex) newIndex--
+  pages.splice(oldIndex, 1)
+  pages.splice(newIndex, 0, page)
+
+  // update page state
+  page.isPinned = !page.isPinned
+  events.emit('pin-updated', page)
+
+  // persist
+  savePinnedToDB()
+}
+
+function indexOfLastPinnedTab () {
+  var index = 0
+  for (index; index < pages.length; index++) {
+    if (!pages[index].isPinned) { break }
+  }
+  return index
+}
+
+export function reorderTab (page, offset) {
+  // only allow increments of 1
+  if (offset > 1 || offset < -1) { return console.warn('reorderTabBy isnt allowed to offset more than -1 or 1; this is a coding error') }
+
+  // first check if reordering can happen
+  var srcIndex = pages.indexOf(page)
+  var dstIndex = srcIndex + offset
+  var swapPage = pages[dstIndex]
+  // is there actually a destination?
+  if (!swapPage) { return false }
+  // can only swap if both are the same pinned state (pinned/unpinned cant mingle)
+  if (page.isPinned != swapPage.isPinned) { return false }
+
+  // ok, do the swap
+  pages[srcIndex] = swapPage
+  pages[dstIndex] = page
+  return true
 }
 
 export function changeActiveBy (offset) {
   if (pages.length > 1) {
     var i = pages.indexOf(activePage)
-    if (i === -1)
-      return console.warn('Active page is not in the pages list! THIS SHOULD NOT HAPPEN!')
+    if (i === -1) { return console.warn('Active page is not in the pages list! THIS SHOULD NOT HAPPEN!') }
 
     i += offset
-    if (i < 0)             i = pages.length - 1
+    if (i < 0) i = pages.length - 1
     if (i >= pages.length) i = 0
 
     setActive(pages[i])
@@ -191,24 +431,50 @@ export function changeActiveBy (offset) {
 }
 
 export function changeActiveTo (index) {
-  if (index >= 0 && index < pages.length)
-    setActive(pages[index])
+  if (index >= 0 && index < pages.length) { setActive(pages[index]) }
 }
 
 export function getActive () {
   return activePage
 }
 
+export function getAdjacentPage (page, offset) {
+  if (pages.length > 1) {
+    // lookup the index
+    var i = pages.indexOf(page)
+    if (i === -1) { return null }
+
+    // add offset and return
+    return pages[i + offset]
+  }
+}
+
 export function getByWebview (el) {
   return getById(el.dataset.id)
 }
 
-export function getById (id) {
-  for (var i=0; i < pages.length; i++) {
-    if (pages[i].id == id)
-      return pages[i]
+export function getByWebContentsID (wcID) {
+  for (var i = 0; i < pages.length; i++) {
+    if (pages[i].wcID === wcID) { return pages[i] }
   }
   return null
+}
+
+export function getById (id) {
+  for (var i = 0; i < pages.length; i++) {
+    if (pages[i].id == id) { return pages[i] }
+  }
+  return null
+}
+
+export function loadPinnedFromDB () {
+  return beaker.browser.getSetting('pinned-tabs').then(json => {
+    try { JSON.parse(json).forEach(url => create({ url, isPinned: true })) } catch (e) {}
+  })
+}
+
+export function savePinnedToDB () {
+  return beaker.browser.setSetting('pinned-tabs', JSON.stringify(getPinned().map(p => p.getURL())))
 }
 
 // event handlers
@@ -216,11 +482,25 @@ export function getById (id) {
 
 function onDomReady (e) {
   var page = getByWebview(e.target)
-  if (page) page.isWebviewReady = true
+  if (page) {
+    page.isWebviewReady = true
+    if (!page.wcID) {
+      page.wcID = e.target.getWebContents().id // NOTE: this is a sync op
+    }
+    if (!navbar.isLocationFocused(page)) {
+      page.webviewEl.shadowRoot.querySelector('object').focus()
+    }
+  }
 }
 
 function onNewWindow (e) {
-  create(e.url)
+  var page = getByWebview(e.target)
+  if (page && page.isActive) { // only open if coming from the active tab
+    var newPage = create(e.url)
+    if (e.disposition === 'foreground-tab' || e.disposition === 'new-window') {
+      setActive(newPage)
+    }
+  }
 }
 
 // will-navigate is the first event called when a link is clicked
@@ -229,87 +509,436 @@ function onNewWindow (e) {
 function onWillNavigate (e) {
   var page = getByWebview(e.target)
   if (page) {
+    // reset some state
+    page.isReceivingAssets = false
+    // update target url
     page.loadingURL = e.url
+    page.siteInfoOverride = null
+    navbar.updateLocation(page)
+  }
+}
+
+// did-navigate-in-page is triggered by hash/virtual-url changes
+// we need to update the url bar but no load event occurs
+function onDidNavigateInPage (e) {
+  // ignore if this is a subresource
+  if (!e.isMainFrame) {
+    return
+  }
+
+  var page = getByWebview(e.target)
+  if (page) {
+    // update ui
+    page.url = e.url
+    navbar.updateLocation(page)
+
+    // update history
+    updateHistory(page)
+  }
+}
+
+function onLoadCommit (e) {
+  // ignore if this is a subresource
+  if (!e.isMainFrame) {
+    return
+  }
+
+  var page = getByWebview(e.target)
+  if (page) {
+    // clear out the page's error
+    page.siteLoadError = null
+    // turn off live reloading if we're leaving the domain
+    if (isDifferentDomain(e.url, page.url)) {
+      page.stopLiveReloading()
+    }
+    // check if this page bookmarked
+    beaker.bookmarks.getBookmark(e.url).then(bookmark => {
+      page.bookmark = bookmark
+      navbar.update(page)
+    })
+    zoom.setZoomFromSitedata(page, parseURL(page.getIntendedURL()).origin)
+    // stop autocompleting
+    navbar.clearAutocomplete()
+    // close any prompts
+    promptbar.forceRemoveAll(page)
+    // set title in tabs
+    page.title = e.target.getTitle() // NOTE sync operation
     navbar.update(page)
-  }  
+  }
 }
 
 function onDidStartLoading (e) {
   var page = getByWebview(e.target)
   if (page) {
+    // update state
+    page.manuallyTrackedIsLoading = true
+    page.siteWasADatTimeout = false
     navbar.update(page)
     navbar.hideInpageFind(page)
+    if (page.isActive) {
+      statusBar.setIsLoading(true)
+    }
+  }
+}
+
+function onDidStopLoading (e) {
+  var page = getByWebview(e.target)
+  if (page) {
+    // update url
+    if (page.loadingURL) {
+      page.url = page.loadingURL
+    }
+    var url = page.url
+
+    // update history and UI
+    updateHistory(page)
+
+    // fetch protocol and page info
+    var { protocol, hostname, pathname } = url.startsWith('dat://') ? parseDatURL(url) : parseURL(url)
+    page.siteInfo = null
+    page.sitePerms = null
+    page.siteHasDatAlternative = false
+    page.protocolInfo = {url, hostname, pathname, scheme: protocol, label: protocol.slice(0, -1).toUpperCase()}
+    if (protocol === 'https:') {
+      page.checkForDatAlternative(hostname)
+    }
+    if (protocol === 'dat:') {
+      DatArchive.resolveName(hostname)
+        .catch(err => hostname) // try the hostname as-is, might be a hash
+        .then(key => (new DatArchive(key)).getInfo())
+        .then(info => {
+          page.siteInfo = info
+          navbar.update(page)
+          console.log('site info', info)
+
+          // fallback the tab title to the site title, if needed
+          if (isEqualURL(page.getTitle(), page.getURL()) && info.title) {
+            page.title = info.title
+            events.emit('page-title-updated', page)
+          }
+        })
+    }
+    if (protocol === 'app:') {
+      beaker.apps.get(0, hostname)
+        .then(async (binding) => {
+          page.protocolInfo.binding = binding
+          console.log('app scheme binding', binding)
+          if (!binding || !binding.url.startsWith('dat://')) {
+            return
+          }
+          page.siteInfo = await (new DatArchive(binding.url)).getInfo()
+          navbar.update(page)
+          console.log('site info', page.siteInfo)          
+        })
+    }
+    if (protocol !== 'beaker:') {
+      page.fetchSitePerms()
+    }
+
+    // update page
+    page.loadingURL = false
+    page.manuallyTrackedIsLoading = false
+    if (page.isActive) {
+      navbar.updateLocation(page)
+      navbar.update(page)
+      statusBar.setIsLoading(false)
+    }
+
+    // markdown rendering
+    // inject the renderer script if the page is markdown
+    if (page.contentType && (page.contentType.startsWith('text/markdown') || page.contentType.startsWith('text/x-markdown'))) {
+      // hide the unformatted text and provide some basic styles
+      page.webviewEl.insertCSS(`
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ubuntu, Cantarell, "Oxygen Sans", "Helvetica Neue", sans-serif; }
+        body > pre { display: none; }
+        main { display: flex; }
+        nav { max-width: 200px; padding-right: 2em; }
+        nav .link { white-space: pre; overflow: hidden; text-overflow: ellipsis; margin: 0.5em 0 }
+        main > div { max-width: 800px; }
+        hr { border: 0; border-top: 1px solid #ccc; margin: 1em 0; }
+        blockquote { margin: 0; padding: 0 1em; border-left: 1em solid #eee; }
+        .anchor-link { color: #aaa; margin-left: 5px; text-decoration: none; visibility: hidden; }
+        h1:hover .anchor-link, h2:hover .anchor-link, h3:hover .anchor-link, h4:hover .anchor-link, h5:hover .anchor-link { visibility: visible; }
+        table { border-collapse: collapse; }
+        td, th { padding: 0.5em 1em; }
+        tbody tr:nth-child(odd) { background: #fafafa; }
+        tbody td { border-top: 1px solid #bbb; }
+        .switcher { position: absolute; top: 5px; right: 5px; font-family: Consolas, 'Lucida Console', Monaco, monospace; cursor: pointer; font-size: 13px; background: #fafafa; padding: 2px 5px; }
+        main code { font-size: 1.3em; background: #fafafa; }
+        main pre { background: #fafafa; padding: 1em }
+      `)
+      if (!cachedMarkdownRendererScript) {
+        cachedMarkdownRendererScript = fs.readFileSync(path.join(APP_PATH, 'markdown-renderer.build.js'), 'utf8')
+      }
+      page.webviewEl.executeJavaScript(cachedMarkdownRendererScript)
+    }
+
+    // HACK
+    // inject some corrections to the user-agent styles
+    // real solution is to update electron so we can change the user-agent styles
+    // -prf
+    page.webviewEl.insertCSS(
+      // set the default background to white.
+      // on some devices, if no bg is set, the buffer doesnt get cleared
+      `body {
+        background: #fff;
+      }` +
+
+      // style file listings
+      `pre{font-family: Consolas, 'Lucida Console', Monaco, monospace; font-size: 13px;}` +
+
+      // hide context menu definitions
+      `menu[type="context"] { display: none; }` +
+
+      // adjust the positioning of fullpage media players
+      `body:-webkit-full-page-media {
+        background: #ddd;
+      }
+      audio:-webkit-full-page-media, video:-webkit-full-page-media {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }`
+    )
+  }
+}
+
+function onDidGetRedirectRequest (e) {
+  // HACK
+  // electron has a problem handling redirects correctly, so we need to handle it for them
+  // see https://github.com/electron/electron/issues/3471
+  // thanks github.com/sokcuri and github.com/alexstrat for this fix
+  // -prf
+  if (e.isMainFrame) {
+    var page = getByWebview(e.target)
+    if (page) {
+      e.preventDefault()
+      setTimeout(() => {
+        console.log('Using redirect workaround for electron #3471; redirecting to', e.newURL)
+        e.target.getWebContents().send('redirect-hackfix', e.newURL)
+      }, 100)
+    }
   }
 }
 
 function onDidGetResponseDetails (e) {
-  if (e.resourceType != 'mainFrame')
+  if (e.resourceType != 'mainFrame') {
     return
+  }
 
   var page = getByWebview(e.target)
   if (page) {
+    // we're goin
+    page.isReceivingAssets = true
+    try {
+      page.contentType = e.headers['content-type'][0] || null
+    } catch (e) {
+      page.contentType = null
+    }
+    // set URL in navbar
     page.loadingURL = e.newURL
-    navbar.update(page)
+    page.siteInfoOverride = null
+    navbar.updateLocation(page)
+    // if it's a failed dat discovery...
+    if (e.httpResponseCode === 504 && e.newURL.startsWith('dat://')) {
+      page.siteWasADatTimeout = true
+    }
   }
 }
 
 function onDidFinishLoad (e) {
   var page = getByWebview(e.target)
   if (page) {
+    // update page object
+    if (page.loadingURL) {
+      page.url = page.loadingURL
+    }
     page.loadingURL = false
+    page.isGuessingTheURLScheme = false
+    page.favicons = null
     navbar.update(page)
+    navbar.updateLocation(page)
   }
 }
 
-const STRIPES_SVG_DATAURI = 'data:image/svg+xml;charset=utf-8;base64,PHN2ZyB2ZXJzaW9uPSIxLjEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIGlkPSJzdmctbGluZXMiPjxkZWZzPjxwYXR0ZXJuIGlkPSJkanV0byIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIj48cGF0aCBkPSJNIDAsMTAgbCAxMCwtMTAgTSAtMi41LDIuNSBsIDUsLTUNCk0gNy41LDEyLjUgbCA1LC01IiBzdHJva2Utd2lkdGg9IjIiIHNoYXBlLXJlbmRlcmluZz0iYXV0byIgc3Ryb2tlPSJyZ2JhKDAsMCwwLDAuMDUpIiBzdHJva2UtbGluZWNhcD0ic3F1YXJlIj48L3BhdGg+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHN0eWxlPSJmaWxsOiB1cmwoI2RqdXRvKTsgc3Ryb2tlLXdpZHRoOiAycHg7Ij48L3JlY3Q+PC9zdmc+'
 function onDidFailLoad (e) {
+  // ignore if this is a subresource
+  if (!e.isMainFrame) { return }
+
+  // ignore aborts. why:
+  // - sometimes, aborts are caused by redirects. no biggy
+  // - if the user cancels, then we dont want to give an error screen
+  if (e.errorDescription == 'ERR_ABORTED' || e.errorCode == ERR_ABORTED) { return }
+
+  // also ignore non-errors
+  if (e.errorCode == 0) { return }
+
   var page = getByWebview(e.target)
   if (page) {
+    var isInsecureResponse = [ERR_INSECURE_RESPONSE, ERR_CONNECTION_REFUSED].indexOf(e.errorCode) >= 0
+    page.siteLoadError = {isInsecureResponse, errorCode: e.errorCode, errorDescription: e.errorDescription}
+    page.title = page.getIntendedURL()
+    navbar.update(page)
+
+    // if https fails for some specific reasons, and beaker *assumed* https, then fallback to http
+    if (page.isGuessingTheURLScheme && isInsecureResponse) {
+      console.log('Guessed the URL scheme was HTTPS, but got back', e.errorDescription, ' - trying HTTP')
+      var url = page.getIntendedURL()
+      page.isGuessingTheURLScheme = false // no longer doing that!
+      if (url.startsWith('https')) {
+        url = url.replace(/^https/, 'http')
+        page.loadURL(url)
+        return
+      }
+    }
+
     // render failure page
-    var errorPageHTML = `<body style="background: #fff700 url(${STRIPES_SVG_DATAURI}); font-family: monospace; color: #3a3333">
-      <div style="max-width: 410px;margin: 70px auto;padding: 10px 25px;border: 10px solid;background: #fff700">
-        <h1>This site can’t be reached</h1>
-        <h2 style="color:#6b6a38">${e.errorDescription}</h2>
-      </div>
-    </body>`.replace(/\n/g,'')
-    page.webviewEl.getWebContents().executeJavaScript('document.documentElement.innerHTML = \''+errorPageHTML+'\'')
+    var errorPageHTML = errorPage(e)
+    page.webviewEl.executeJavaScript('document.documentElement.innerHTML = \'' + errorPageHTML + '\'')
   }
 }
 
-function onIpcMessage (e, type) {
-  var page = getByWebview(e.target)
-  if (page) {
-    switch (e.channel) {
-      case 'new-tab':         return create(e.args[0])
-      case 'inspect-element': return page.webviewEl.inspectElement(e.args[0], e.args[1])
-      case 'set-status-bar':  return statusBar.set(e.args[0])
+async function onPageFaviconUpdated (e) {
+  if (e.favicons && e.favicons[0]) {
+    var page = getByWebview(e.target)
+    page.favicons = e.favicons
+    events.emit('page-favicon-updated', getByWebview(e.target))
+
+    // store favicon to db
+  var res = await urlsToData(e.favicons)
+    if (res) {
+      beaker.sitedata.set(page.getURL(), 'favicon', res.dataUrl)
     }
   }
 }
 
-// internal functions
+function onUpdateTargetUrl ({ url }) {
+  statusBar.set(url)
+}
+
+function onFoundInPage (e) {
+  var page = getByWebview(e.target)
+  page.inpageFindInfo = e.result
+  navbar.update(page)
+}
+
+function onClose (e) {
+  var page = getByWebview(e.target)
+  if (page) {
+    remove(page)
+  }
+}
+
+function onPageTitleUpdated (e) {
+  var page = getByWebview(e.target)
+  page.title = e.title
+
+  // if page title changed within 15 seconds, update it again
+  if (page.getIntendedURL() === page.lastVisitedURL && Date.now() - page.lastVisitedAt < 15 * 1000) {
+    updateHistory(page)
+  }
+}
+
+function onCrashed (e) {
+  console.error('Webview crash', e)
+}
+
+export function onIPCMessage (e) {
+  var page = getByWebview(e.target)
+  switch (e.channel) {
+    case 'site-info-override:set':
+      if (page) {
+        page.siteInfoOverride = e.args[0]
+        navbar.updateLocation(page)
+        navbar.update(page)
+      }
+      break
+    case 'site-info-override:clear':
+      if (page) {
+        page.siteInfoOverride = null
+        navbar.updateLocation(page)
+        navbar.update(page)
+      }
+      break
+    case 'open-url':
+      var {url, newTab} = e.args[0]
+      if (newTab) {
+        create(url)
+      } else {
+        getActive().loadURL(url)
+      }
+      navbar.closeMenus()
+      break
+    case 'close-menus':
+      navbar.closeMenus()
+      break
+    case 'toggle-live-reloading':
+      if (activePage) {
+        activePage.toggleLiveReloading()
+      }
+      break
+  }
+}
+
+// internal helper functions
 // =
 
 function show (page) {
   page.webviewEl.classList.remove('hidden')
   page.navbarEl.classList.remove('hidden')
+  page.promptbarEl.classList.remove('hidden')
   events.emit('show', page)
 }
 
 function hide (page) {
   page.webviewEl.classList.add('hidden')
   page.navbarEl.classList.add('hidden')
+  page.promptbarEl.classList.add('hidden')
   events.emit('hide', page)
 }
 
-function createWebviewEl (id, url) {
+export function createWebviewEl (id, url) {
   var el = document.createElement('webview')
   el.dataset.id = id
-  el.setAttribute('preload', 'file://'+path.join(remote.app.getAppPath(), 'webview-preload.build.js'))
+  el.setAttribute('preload', 'file://' + path.join(APP_PATH, 'webview-preload.build.js'))
+  el.setAttribute('webpreferences', 'allowDisplayingInsecureContent,contentIsolation')
+  // TODO re-enable nativeWindowOpen when https://github.com/electron/electron/issues/9558 lands
   el.setAttribute('src', url || DEFAULT_URL)
   return el
 }
 
 function rebroadcastEvent (e) {
-  events.emit(e.type, e)
+  events.emit(e.type, getByWebview(e.target), e)
+}
+
+function parseURL (str) {
+  try { return new URL(str) } catch (e) { return {} }
+}
+
+function isEqualURL (a, b) {
+  return parseURL(a).origin === parseURL(b).origin
+}
+
+function isDifferentDomain (a, b) {
+  return parseURL(a).origin !== parseURL(b).origin
+}
+
+async function updateHistory (page) {
+  var url = page.getURL()
+
+  if (!url.startsWith('beaker://') || url.match(/beaker:\/\/library\/[0-9,a-f]{64}/g)) {
+    beaker.history.addVisit({url: page.getIntendedURL(), title: page.getTitle() || page.getURL()})
+    if (page.isPinned) {
+      savePinnedToDB()
+    }
+    page.lastVisitedAt = Date.now()
+    page.lastVisitedURL = url
+  }
+
+  // read and cache current nav state
+  var [b, f] = await Promise.all([page.canGoBackAsync(), page.canGoForwardAsync()])
+  page._canGoBack = b
+  page._canGoForward = f
+  navbar.update(page)
 }

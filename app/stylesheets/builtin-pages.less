@@ -1,0 +1,427 @@
+@import "./photon.min.less";
+
+@import "./base/typography";
+
+@import "./components/buttons.less";
+@import "./com/toolbar.less";
+@import "./com/downloads.less";
+@import "./com/spinner.less";
+@import "./com/markdown.less";
+@import "./components/modal.less";
+@import "./builtin-pages/components/toast";
+
+// TODO: shouldn't import each of these on all builtin pages
+// just reference them in their respective HTML -tbv
+@import "./builtin-pages/bookmarks";
+@import "./builtin-pages/history";
+@import "./builtin-pages/library";
+@import "./builtin-pages/timeline";
+@import "./builtin-pages/downloads";
+@import "./builtin-pages/settings";
+@import "./builtin-pages/profile";
+@import "./builtin-pages/components/links-list";
+@import "./builtin-pages/components/files-list.less";
+@import "./builtin-pages/components/sidebar";
+@import "./builtin-pages/components/close-btn";
+@import "./builtin-pages/components/avatar";
+
+.window:before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: #111111;
+  width: 40px;
+  z-index: 1;
+}
+
+.window-content.builtin {
+  &:extend(.system-font);
+  background: #fcfcfc;
+
+  // TODO
+  // This is a temporary change to the builtin page button styles. Ultimately
+  // they'll need to be applied to all buttons, but those changes will need to
+  // tested thoroughly before they're launched. -tbv
+  .btn {
+    border-radius: 4px;
+    height: 26px;
+    font-weight: 400;
+
+    &.primary,
+    &.success {
+      font-weight: 600;
+    }
+  }
+}
+
+.builtin-wrapper {
+  &:extend(.flex);
+  width: 100%;
+  padding-left: 40px;
+
+  em.empty {
+    display: block;
+    padding: 15px;
+    color: rgba(0,0,0,.65);
+  }
+
+  h1 {
+    margin-top: 0;
+    font-size: 1.3rem;
+    font-weight: 400;
+    padding: 0 20px;
+    color: rgba(0,0,0,.75);
+    margin-bottom: 30px;
+  }
+
+  h2 {
+    font-weight: 400;
+    font-size: .725rem;
+    text-transform: uppercase;
+    margin: 20px 0 5px 0;
+    color: rgba(51, 51, 51, 0.65);
+    letter-spacing: .4px;
+  }
+
+  .links-list {
+    max-width: 875px; // TODO
+    margin-bottom: 20px;
+  }
+
+  .ll-row {
+    &:extend(.flex);
+    align-items: center;
+    position: relative;
+    align-items: center;
+    padding: 0 15px;
+    background: #fff;
+    border-right: 1px solid rgb(230, 230, 230);
+    border-bottom: 1px solid rgb(230, 230, 230);
+
+    .link {
+      &:extend(.flex);
+      align-items: center;
+      flex-wrap: nowrap;
+    }
+
+    &:hover {
+      background: rgb(249, 249, 249);
+
+      .actions {
+        background: rgb(249, 249, 249);
+      }
+    }
+
+    .title {
+      &:extend(.overflow-ellipsis);
+      max-width: 650px;
+      display: inline-block;
+      margin-right: 5px;
+    }
+
+    .url {
+      &:extend(.overflow-ellipsis);
+      max-width: 200px;
+      margin-right: 20px;
+      color: #aaa;
+      font-size: 12px;
+    }
+
+    .actions {
+      &:extend(.flex);
+      align-items: center;
+      line-height: 100%;
+      position: absolute;
+      right: 20px;
+    }
+  }
+
+  .search-container {
+    position: relative;
+    margin-bottom: 15px;
+    width: 300px;
+    height: 30px;
+    margin-bottom: 10px;
+
+    .close-btn,
+    .search {
+      position: absolute;
+    }
+
+    .close-btn {
+      right: 7px;
+      top: 7px;
+    }
+
+    .search {
+      width: 100%;
+      height: 100%;
+      padding: 0 10px;
+
+      &:invalid + .close-btn {
+        opacity: 0;
+      }
+    }
+  }
+}
+
+.builtin-header {
+  padding: 15px;
+  background: @background-builtin-page;
+
+  &.fixed {
+    &:extend(.flex);
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    position: fixed;
+    z-index: 3;
+    width: 100%;
+    max-width: ~"calc(100% - 340px)";
+    height: 50px;
+    padding: 0 10px;
+    border-bottom: 1px solid rgb(210, 210, 213);
+    box-shadow: 0 2px 0 rgba(0,0,0,.025);
+
+    > * {
+      margin-bottom: 0;
+    }
+
+    + div {
+      padding-top: 50px;
+    }
+  }
+}
+
+.builtin-sidebar {
+  position: fixed;
+  width: 300px;
+  height: 100%;
+  background: @background-builtin-page;
+  padding: 10px 0;
+  border-right: 1px solid rgb(210, 210, 213);
+  display: inline-block;
+
+  .builtin-blurb {
+    padding: 0 20px;
+    padding-bottom: 20px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(0,0,0,.1);
+    color: rgba(51, 51, 51, 0.9); // TODO make this a var -tbv
+  }
+
+  .section {
+    margin-bottom: 20px;
+
+    h2 {
+      padding: 1px 20px;
+
+      &.clickable {
+        cursor: pointer;
+      }
+
+      .icon {
+        width: 9px;
+        height: 9px;
+        margin-left: 3px;
+
+        * {
+          fill: rgba(0,0,0,.25);
+          transition: fill .1s ease;
+        }
+      }
+
+      &:hover {
+
+        .icon * {
+          fill: rgba(0,0,0,.5);
+        }
+      }
+    }
+  }
+
+  .nav-item {
+    &:extend(.flex);
+    align-items: center;
+    height: 28px;
+    padding: 0 20px;
+    margin-bottom: 1px;
+    color: fadeout(@color-text, 10%);
+
+    .icon {
+      width: 18px;
+      height: 18px;
+      margin-right: 5px;
+
+      &.history {
+        width: 15px;
+        height: 15px;
+        margin-right: 8px;
+      }
+
+      &.star-fill {
+        width: 17px;
+        height: 17px;
+        margin-left: .5px;
+        margin-right: 5.5px;
+
+        * {
+          fill: rgba(0,0,0,.25);
+          stroke-opacity: 0;
+        }
+      }
+
+      &.padlock {
+        width: 11px;
+        height: 14px;
+        margin-left: 3px;
+        margin-right: 9px;
+        margin-top: -1px;
+
+        #top {
+          stroke: rgba(0,0,0,.25);
+        }
+
+        #bottom {
+          fill: rgba(0,0,0,.25);
+        }
+      }
+
+      &.globe {
+        width: 14px;
+        margin-left: 2px;
+        margin-right: 7px;
+
+        #water {
+          fill: rgba(0,0,0,.25);
+        }
+
+        .earth {
+          fill: fadeout(#fff, 10%);
+        }
+      }
+
+      &.history * {
+        stroke: rgba(0,0,0,.25);
+      }
+
+      &.pin *,
+      &.star-fill * {
+        fill: rgba(0,0,0,.25);
+      }
+
+      &.pin {
+        width: 11px;
+        margin-left: 3.25px;
+        margin-right: 8.75px;
+      }
+    }
+
+    &:hover {
+      background: rgb(233, 233, 236);
+    }
+
+    &.active {
+      background: rgb(225, 237, 250); // TODO decide if this is color we will use -tbv
+      font-weight: 500;
+
+      .icon {
+
+        &.star-fill,
+        &.pin {
+         * {
+            fill: fadeout(@color-text, 25%);
+            stroke: fadeout(@color-text, 25%);
+          }
+        }
+
+        &.globe {
+
+          #water {
+            fill: fadeout(@color-text, 25%);
+          }
+        }
+
+        &.padlock {
+
+          #top {
+            stroke: fadeout(@color-text, 25%);
+          }
+
+          #bottom {
+            fill: fadeout(@color-text, 25%);
+          }
+        }
+      }
+    }
+
+    &.friend {
+
+      img {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
+    }
+
+    &.disabled {
+      color: @color-text--midlight;
+
+      &:hover {
+        background: transparent;
+      }
+
+      .coming-soon {
+        display: inline-block;
+        font-style: italic;
+        margin-left: 0.5rem;
+      }
+    }
+  }
+
+  .nav-link-cloud {
+    padding: 0 20px;
+
+    a {
+      display: inline-block;
+      margin: 0 6px 6px 0;
+      padding: 0px 5px;
+      background: #eee;
+      border: 1px solid #ddd;
+      border-radius: 2px;
+      color: #555;
+      font-weight: 500;
+      font-size: 12px;
+      text-decoration: none;
+      white-space: pre;
+
+      &:hover {
+        background: #e5e5e5;
+        border-color: #d5d5d5;
+      }
+
+      &.active {
+        background: #e1edfa;
+        border-color: #a2a2f5;
+        color: #5252c5;
+      }
+    }
+  }
+}
+
+.builtin-main {
+  width: 100%;
+  margin-left: 300px;
+  margin-bottom: 20px;
+
+  &.center {
+    margin: 75px auto;
+    padding: 0 50px;
+    width: 100%;
+    height: auto;
+    max-width: 750px;
+  }
+}

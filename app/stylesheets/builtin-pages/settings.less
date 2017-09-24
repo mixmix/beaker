@@ -1,0 +1,173 @@
+@import "../base/colors";
+@import "../base/spacing";
+
+.settings-wrapper {
+
+  .builtin-main {
+    padding: 25px;
+    max-width: 650px;
+
+    h2:first-of-type {
+      margin-top: 0;
+    }
+  }
+}
+
+.settings-section {
+  margin-bottom: 40px;
+
+  a {
+    &:extend(.link);
+
+    &:hover {
+      &:extend(.link:hover);
+    }
+  }
+
+  .version-info {
+    margin-left: 1rem;
+
+    .spinner {
+      display: inline-block;
+    }
+
+    label {
+      margin-left: 1rem;
+    }
+  }
+
+  &.start-page {
+
+    label {
+      display: block;
+    }
+
+    input {
+      margin-left: @padding-component--tight;
+
+      &[type="radio"] {
+        margin-right: 5px;
+      }
+    }
+
+    img.bg-preview {
+      display: block;
+      max-width: 40%;
+      margin: @padding-component--tight 0 @padding-component 0;
+    }
+  }
+
+  &.protocols a {
+    margin-left: 5px;
+  }
+
+  &.help {
+
+    a {
+      text-decoration: none;
+    }
+  }
+}
+
+ul.settings-section {
+  margin-left: @padding-component--tight;
+}
+
+.bg-images {
+  &:extend(.flex);
+  max-width: 400px;
+}
+
+.bg-image-container {
+  position: relative;
+  margin-right: 10px;
+  margin-bottom: 5px;
+
+  &.add {
+    font-size: 50px;
+    width: 90px;
+    height: 60px;
+    border-radius: 2px;
+    text-align: center;
+    background: rgba(102, 110, 154, .15);
+    color: fadeout(#fff, 5%);
+    line-height: 1.05;
+    transition: background .1s ease;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(102, 110, 154, .225);
+    }
+  }
+
+  input[type="file"] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  &.selected:after {
+    display: block;
+    content: '✓';
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    color: rgba(255,255,255,.95);
+    background: fadeout(@color-link, 8%);
+    border-radius: 50%;
+    margin: auto;
+    left: 31px;
+    top: 17px;
+    line-height: 1.475;
+    font-size: 18px;
+    text-align: center;
+  }
+}
+
+.bg-image {
+  border-radius:  2px;
+}
+
+.settings-section.applications {
+  a {
+    text-decoration: none;
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .create-app { 
+    margin: 2px 1px;
+    font-size: 0.7rem;
+  }
+
+  table {
+    background: #fff;
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+
+    td {
+      border: 1px solid #ddd;
+
+      &.current-value {
+        a {
+          color: gray;
+        }
+      }
+      &.date {
+        width: 100px;
+      }
+      &.edit-ctrl {
+        width: 55px;
+      }
+      &.remove-ctrl {
+        width: 77px;
+      }
+    }
+  }
+}

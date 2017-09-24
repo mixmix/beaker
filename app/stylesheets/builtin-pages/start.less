@@ -1,76 +1,194 @@
-@import "../photon.min.less";
+@import "../base/reset.less";
+@import "../base/colors";
+@import "../base/spacing";
+@import "../utils/decorators";
+@import "../utils/flex";
+@import "../components/buttons";
+@import "../components/link";
+@import "../components/messages";
+@import "./components/links-list";
+@import "./components/sidebar";
 
-@font-face {
-  font-family: "photon-entypo";
-  src: url("beaker:font") format("woff");
-  font-weight: normal;
-  font-style: normal;
+.window-content.start {
+  overflow: auto;
+  height: 100vh;
+  // background-image: url("beaker://start/background-image");
+  // background-size: cover;
+  // background-position: center;
+
+  // TODO(bgimg) disabled for now -prf
+  //.sidebar {
+  //  background: fadeout(#111, 50%);
+  //}
 }
 
-a {
+body {
+  height: auto;
+}
+
+.beaker-welcome {
+  width: 410px;
+  text-align: center;
+  padding: 7px 26px 7px 13px;
+  margin-left: auto;
+  margin-right: auto;
+  border: 1px solid @blue;
+  color: @blue;
+  border-radius: 4px;
+  font-size: 13.5px;
+  margin-top: 100px;
+  margin-bottom: -100px;
+  position: relative;
+
+  p {
+    margin: 0;
+  }
+
+  i {
+    position: absolute;
+    right: 8px;
+    top: 10px;
+    font-weight: 300;
+    padding: 2px;
+    cursor: pointer;
+
+    &:hover {
+      background: @blue;
+      color: #fff;
+    }
+  }
+
+  a {
+    text-decoration: none !important;
+    border-bottom: 1px dotted;
+    cursor: pointer;
+  }
+}
+
+.pinned-bookmarks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-gap: 15px;
+  padding-bottom: 20px;
+
+  @media (min-width: 550px) {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  @media (min-width: 700px) {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+.pinned-bookmark {
+  position: relative;
+  text-align: center;
+  background: #fff;
+  border: 3px solid #fff;
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.15);
+  border: 1px solid rgba(0,0,0,.1);
+
+  * {
+    cursor: pointer;
+  }
+
+  &:hover {
+    box-shadow: 0 2px 0 rgba(0,0,0,.15);
+
+    button.close-btn {
+      opacity: 1;
+    }
+  }
+
+  button.close-btn {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    padding: 0;
+    width: 13px;
+    height: 13px;
+    opacity: 0;
+    transition: opacity .175s ease;
+    transition-delay: .15s;
+  }
+
+  .info {
+    padding: 0 10px;
+    font-size: .725rem;
+  }
+
+  .title {
+    &:extend(.overflow-ellipsis);
+    margin: auto;
+    height: 25px;
+    line-height: 25px;
+    vertical-align: middle;
+    color: fadeout(@color-text, 10%);
+    max-width: 125px;
+
+    /*
+    TODO(bgimg) restore with background images -prf
+    color: #fff;
+    text-shadow: 0 0 4px fadeout(black, 50%);
+    -webkit-font-smoothing: antialiased;
+    font-weight: 600;
+    */
+  }
+
+  .favicon-container {
+    position: relative;
+    height: 70px;
+    margin-bottom: 5px;
+  }
+
+  .favicon {
+    width: 32px;
+    margin-top: 25px;
+  }
+}
+
+.add-bookmark-btn {
+  text-align: center;
+  line-height: 95px;
+  font-size: 2rem;
+  color: rgba(0,0,0,.4);
   cursor: pointer;
+  border-radius: 2px;
+
+  &:hover {
+    background: rgba(0,0,0,.07);
+  }
 }
 
-// dont do photon's highlighting on click
-tr:active {
-  background: inherit;
-  color: inherit;
-}
-.table-striped tr:active:nth-child(even) {
-  background-color: #f5f5f4;
-  color: inherit;
+.bookmarks-list {
+  margin: 0;
+  padding: 0;
 }
 
-.bookmarks {
-  // enlarge the bookmarks list
-  font-size: 14px;
+.alert {
+  padding: 15px;
+  margin-bottom: 20px;
+  border: 1px solid transparent;
+  border-radius: 4px;
 
-  tr td {
-    // make it apparent the bookmarks are editable
-    cursor: text;
+  &__info {
+    color: #31708f;
+    background-color: #d9edf7;
+    border-color: #bce8f1;
 
-    // make all columns after the first a lighter gray
-    &:not(:first-child) {
-      color: #999;
-    }
-
-    // make links blend into the table more nicely
     a {
-      color: inherit;
-      text-decoration: none;
-      &:hover {
-        text-decoration: underline;
-      }
-    }
-
-    // make the first column's link take the full width
-    &:first-child a {
-      display: block;
-    }
-
-    // make the actions compact, and hidden except on hover
-    &.actions {
-      width: 40px;
-      .icon {
-        display: none;
-        cursor: pointer;
-      }
-    }
-
-    // make the input fit nicely and take the full width possible
-    input {
-      width: 100%;
-      padding: 0;
-      line-height: 1;
-      &:focus {
-        outline: 0;
-      }
+      color: #31708f;
+      text-decoration: underline;
     }
   }
-  tr:hover td.actions {
-    // show icons on row hover
-    .icon {
-      display: inline;
-    }
+
+  &__release-notes {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
   }
 }
+

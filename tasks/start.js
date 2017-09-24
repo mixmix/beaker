@@ -1,15 +1,7 @@
-'use strict';
+'use strict'
 
-var childProcess = require('child_process');
-var electron = require('electron-prebuilt');
-var gulp = require('gulp');
+const gulp = require('gulp')
+const start = require('./start-cli')
 
-gulp.task('start', ['watch'], function () {
-  childProcess.spawn(electron, ['./app', '--disable-gpu'], {
-    stdio: 'inherit'
-  })
-  .on('close', function () {
-    // User closed the app. Kill the host process.
-    process.exit();
-  });
-});
+gulp.task('start', start)
+gulp.task('start-watch', ['watch'], start)

@@ -1,172 +1,25 @@
 @import "./photon.min.less";
-
-@font-face {
-  font-family: "photon-entypo";
-  src: url("beaker:font") format("woff");
-  font-weight: normal;
-  font-style: normal;
-}
+@import "./fonts/source-sans-pro.less";
+@import "./com/spinner.less";
+@import "./components/link.less";
+@import "./components/buttons.less";
+@import "./components/inputs.less";
+@import "./shell-window/chrome-tabs.less";
+@import "./shell-window/toolbar.less";
+@import "./shell-window/toolbar-actions.less";
+@import "./shell-window/toolbar-dropdown.less";
+@import "./shell-window/toolbar-input-group.less";
+@import "./shell-window/promptbar.less";
+@import "./shell-window/swipe-arrows.less";
+@import "./shell-window/statusbar.less";
+@import "./shell-window/bookmark-menu-dropdown.less";
+@import "./shell-window/rehost-menu-dropdown.less";
+@import "./shell-window/webviews.less";
 
 body {
   margin: 0;
   padding: 0;
-}
-
-// draggable region for OSX
-body.darwin #toolbar {
-  display: block;
-  -webkit-app-region: drag;
-}
-
-#toolbar {
-  height: 64px;
-  border-bottom: 1px solid #999;
-
-  .toolbar-actions {
-    display: flex;
-
-    &.hidden {
-      display: none;
-    }
-
-    input.form-control {
-      flex: 1;
-      box-shadow: inset 0px 1px 1px rgba(0,0,0,.25);
-      border: 1px solid #B3B1B3;
-      border-radius: 3px;
-      padding: 0px 10px;
-      margin-right: 3px;
-      font-size: 14px;
-      line-height: 1.1;
-      -webkit-app-region: no-drag;
-    }
-    .btn .icon {
-      width: 20px;
-      height: 18px;
-      font-size: 17px;
-      line-height: 1.1;
-    }
-  }
-  #toolbar-tabs {
-    margin: 0;
-    border: 0;
-
-    .tab-item {
-      // we want to keep tabs equal width, and overflow the text
-      min-width: 0; // this seems to force the sizing behavior we want
-      overflow: hidden;
-      text-overflow: ellipsis;
-      .tab-text {
-        white-space: pre;
-      }
-
-      // put close icon on right
-      .icon {
-        left: auto;
-        right: 5px;
-      }
-
-      // visual adjustments
-      padding: 3px 22px; 
-      border-top: 1px solid #989698;
-      border-bottom: 1px solid #989698;
-      &.active {
-        background: none;
-        border-top: 0;
-        border-bottom: 0;
-      }
-    }
-  }
-}
-// make space for headlights on osx
-body.darwin #toolbar #toolbar-tabs .tab-item:first-child {
-  padding-left: 70px;
-}
-
-.window-blurred {
-  // when the window isnt focused, lighten the toolbar
-  #toolbar {
-    background: #eee;
-    border-color: #bbb;
-
-    .toolbar-actions .form-control {
-      box-shadow: none;
-    }
-  }
-  .tab-group {
-    border-color: #ccc;
-  }
-  .tab-item {
-    background: #e0e0e0;
-    border-color: #ccc !important;
-    &.active {
-      background: #eee !important;
-    }
-  }
-}
-#webviews {
-  height: ~"calc(100vh - 62px)"; // ~"" is an escaped string, it keeps less from running this calc in the preprocessing
-  position: relative;
-
-  webview {
-    height: 100%;
-    width: 100%;
-    outline: none;
-    position: absolute;
-
-    &.hidden {
-      // use visiblity instead of display: none
-      // (this ensures that, even if hidden, the webview will do work)
-      display: flex; // the default display type
-      visibility: hidden;
-
-      // this is what electron's docs recommend...
-      // causes the pages to relayout on unhide, though, which sucks
-      // but, keep an eye out for bugs that would make the following better
-      // -prf
-      /*flex: 0 1;
-      width: 0px;
-      height: 0px;*/
-    }
-  }
-}
-
-#status-bar {
-  position: fixed;
-  left: 0;
-  bottom: 0;
-  background: #eee;
-  padding: 0 5px;
-  border: 1px solid #aaa;
-  border-radius: 2px;
-  font-size: 12px;
-  min-width: 300px;
-}
-
-#left-swipe-arrow, #right-swipe-arrow {
-  position: fixed;
-  top: ~"calc(50vh)";
-  z-index: 1000;
-  font-size: 50px;
-  line-height: 1;
-  padding: 10px 16px;
-  border-radius: 40px;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.25);
-  transition: background 0.25s;
-
-  &.highlight {
-    background: rgba(0, 0, 0, 0.75);
-  }
-  &.returning {
-    transition: left 0.2s, right 0.2s;  
-  }
-}
-#left-swipe-arrow {
-  left: -80px;
-}
-#right-swipe-arrow {
-  right: -80px;
+  background: #f7f7f7;
 }
 
 // general styles

@@ -1,9 +1,10 @@
-import * as pages from './shell-window/pages'
+import { ipcRenderer } from 'electron'
 import { setup as setupUI } from './shell-window/ui'
-import { setup as setupCommandHandlers } from './shell-window/command-handlers'
-import { setup as setupSwipeHandlers } from './shell-window/swipe-handlers'
+import DatArchive from './lib/web-apis/dat-archive'
+import beaker from './lib/web-apis/beaker'
 
-setupUI()
-setupCommandHandlers()
-setupSwipeHandlers()
-pages.create('beaker:start')
+window.DatArchive = DatArchive
+window.beaker = beaker
+setupUI(() => {
+  ipcRenderer.send('shell-window-ready')
+})
