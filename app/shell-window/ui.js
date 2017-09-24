@@ -48,8 +48,14 @@ function onWindowEvent (event, type) {
       document.body.classList.remove('window-blurred')
       try { pages.getActive().webviewEl.focus() } catch (e) {}
       break
-    case 'enter-full-screen': return document.body.classList.add('fullscreen')
-    case 'leave-full-screen': return document.body.classList.remove('fullscreen') 
+    case 'enter-full-screen': 
+      document.body.classList.add('fullscreen')
+      pages.getActive().setFullscreen(true)
+      break
+    case 'leave-full-screen':
+      document.body.classList.remove('fullscreen') 
+      pages.getActive().setFullscreen(false)
+      break
   }
 }
 

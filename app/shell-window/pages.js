@@ -5,7 +5,6 @@ import EventEmitter from 'events'
 import path from 'path'
 import fs from 'fs'
 import parseDatURL from 'parse-dat-url'
-import * as yo from 'yo-yo'
 import * as zoom from './pages/zoom'
 import * as navbar from './ui/navbar'
 import * as promptbar from './ui/promptbar'
@@ -14,6 +13,7 @@ import {urlsToData} from '../lib/fg/img'
 import {throttle} from '../lib/functions'
 import errorPage from '../lib/error-page'
 import addAsyncAlternatives from './webview-async'
+import FullscreenWarning from './ui/prompts/fullscreen'
 
 // constants
 // =
@@ -23,8 +23,6 @@ const ERR_CONNECTION_REFUSED = -102
 const ERR_INSECURE_RESPONSE = -501
 
 const TRIGGER_LIVE_RELOAD_DEBOUNCE = 1e3 // throttle live-reload triggers by this amount
-
-const FULLSCREEN_WARNING_TIME = 1500
 
 export const FIRST_TAB_URL = 'beaker://start'
 export const DEFAULT_URL = 'beaker://start'
@@ -40,6 +38,7 @@ var events = new EventEmitter()
 var webviewsDiv = document.getElementById('webviews')
 var closedURLs = []
 var cachedMarkdownRendererScript
+var fullscreenWarning = null
 
 // exported functions
 // =
@@ -108,7 +107,6 @@ export function create (opts) {
     isReceivingAssets: false, // has the webview started receiving assets, in the current load-cycle?
     isActive: false, // is the active page?
     isMaximised: false, // is the view current maximised (matters for OSX)
-    isFullscreen: false, // is currenly in fullscreen mode?
     isInpageFinding: false, // showing the inpage find ctrl?
     inpageFindInfo: null, // any info available on the inpage find {activeMatchOrdinal, matches}
     liveReloadEvents: false, // live-reload event stream
@@ -225,21 +223,14 @@ export function create (opts) {
       navbar.update(page)
     },
 
-    toggleFullscreen () {
-      var prompt = {
-        type: 'fullscreen',
-        render: () => { 
-          const maxAlert = yo`<div>WARNING - you are fullscreen</div>`
-          const minAlert = yo`<div class='hidden-till-hover'>fullscreen</div>` //TODO - actually minimize
-
-          setTimeout(() => yo.update(maxAlert, minAlert), FULLSCREEN_WARNING_TIME)
-          return maxAlert
-        }
+    setFullscreen (isFullscreen) {
+      if (isFullscreen) {
+        fullscreenWarning = FullscreenWarning()
+        promptbar.add(page, fullscreenWarning)
+      } else {
+        promptbar.remove(page, fullscreenWarning)
+        fullscreenWarning = null
       }
-
-      page.isFullscreen
-        ? promptbar.remove(page, prompt)
-        : promptbar.add(page, prompt)
     },
 
     stopLiveReloading () {
@@ -280,9 +271,6 @@ export function create (opts) {
       }
     }
   }
-
-  // TODO - rm this temp test
-  setInterval(page.toggleFullscreen, 5000)
 
   if (opts.isPinned) {
     pages.splice(indexOfLastPinnedTab(), 0, page)

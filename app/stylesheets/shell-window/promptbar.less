@@ -6,6 +6,52 @@
   width: 100%;
 }
 
+body.fullscreen #promptbars {
+  top: 0;
+  height: 10px;
+
+  div {
+    visibility: hidden;
+    background: none;
+    border: none;
+
+    .promptbar {
+      box-shadow: none;
+      .prompt {
+        background-color: #fff;
+        padding: 10px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        button {
+          margin-left: 1rem;
+          border: 1px #666 solid;
+
+          &:hover {
+            opacity: .8;
+          }
+        }
+
+        &.push-to-front {
+          visibility: visible;
+        }
+      }
+      &:before {
+        display: none;
+      }
+    }
+  }
+
+  &:hover {
+    div { 
+      visibility: visible;
+    }
+  }
+
+}
+
 .promptbar {
   position: relative;
   background: #fff;
