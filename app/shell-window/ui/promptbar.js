@@ -1,4 +1,5 @@
 import * as yo from 'yo-yo'
+import { findIndex } from 'lodash'
 import * as pages from '../pages'
 
 // globals
@@ -55,7 +56,7 @@ export function remove (page, prompt) {
   if (!page.prompts) { return } // page no longer exists
 
   // find and remove
-  var i = page.prompts.indexOf(prompt)
+  var i = findIndex(page.prompts, prompt)
   if (i !== -1) {
     page.prompts.splice(i, 1)
     update(page)

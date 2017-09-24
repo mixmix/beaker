@@ -13,6 +13,7 @@ import {urlsToData} from '../lib/fg/img'
 import {throttle} from '../lib/functions'
 import errorPage from '../lib/error-page'
 import addAsyncAlternatives from './webview-async'
+import FullscreenWarning from './ui/prompts/fullscreen'
 
 // constants
 // =
@@ -37,6 +38,7 @@ var events = new EventEmitter()
 var webviewsDiv = document.getElementById('webviews')
 var closedURLs = []
 var cachedMarkdownRendererScript
+var fullscreenWarning = null
 
 // exported functions
 // =
@@ -104,6 +106,7 @@ export function create (opts) {
     isWebviewReady: false, // has the webview loaded its methods?
     isReceivingAssets: false, // has the webview started receiving assets, in the current load-cycle?
     isActive: false, // is the active page?
+    isMaximised: false, // is the view current maximised (matters for OSX)
     isInpageFinding: false, // showing the inpage find ctrl?
     inpageFindInfo: null, // any info available on the inpage find {activeMatchOrdinal, matches}
     liveReloadEvents: false, // live-reload event stream
@@ -218,6 +221,16 @@ export function create (opts) {
         })
       }
       navbar.update(page)
+    },
+
+    setFullscreen (isFullscreen) {
+      if (isFullscreen) {
+        fullscreenWarning = FullscreenWarning()
+        promptbar.add(page, fullscreenWarning)
+      } else {
+        promptbar.remove(page, fullscreenWarning)
+        fullscreenWarning = null
+      }
     },
 
     stopLiveReloading () {
